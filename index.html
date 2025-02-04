@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Téléprompteur</title>
+  <style>
+    /* --- Variables CSS --- */
+    :root {
+      --primary-color: #007BFF;
+      --primary-hover: #0056b3;
+      --success-color: #28a745;
+      --success-hover: #218838;
+      --scroll-color: #17a2b8;
+      --scroll-hover: #117a8b;
+      --text-color: #ffd700;
+      --background-light: #f7f7f7;
+      --background-dark: #000000;
+    }
+
+    /* --- Reset et styles de base --- */
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: var(--background-light);
+    }
+
+    /* --- Layout principal --- */
+    #container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    /* --- Zone de saisie --- */
+    #textInput {
+      width: 100%;
+      height: 100px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      padding: 10px;
+      resize: vertical;
+    }
+
+    label {
+      font-weight: bold;
+    }
+
+    /* --- Boutons --- */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #fff;
+    }
+
+    #generateBtn {
+      background: var(--primary-color);
+    }
+
+    #generateBtn:hover {
+      background: var(--primary-hover);
+    }
+
+    /* --- Téléprompteur --- */
+    #teleprompter {
+      perspective: 800px;
+      height: 600px;
+      overflow: hidden;
+      background: var(--background-dark);
+      margin-top: 20px;
+      display: none;
+    }
+
+    #displayZone {
+      position: relative;
+      color: var(--text-color);
+      font-size: 4.5em;
+      font-weight: bold;
+      text-align: center;
+      animation: scroll-up 45s linear infinite;
+      animation-play-state: paused;
+      padding: 40px;
+      line-height: 1.8;
+    }
+
+    /* --- Effets de surlignage --- */
+    #displayZone span {
+      display: block;
+      margin: 20px 0;
+      transition: all 0.3s ease;
+      opacity: 0.7;
+    }
+
+    #displayZone span.active {
+      color: #ffffff;
+      opacity: 1;
+      transform: scale(1.1);
+      text-shadow: 0 0 20px var(--text-color);
+    }
+
+    /* --- Timer --- */
+    #timer {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: var(--text-color);
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-size: 24px;
+      z-index: 1000;
+    }
+
+    /* --- Animations --- */
+    @keyframes scroll-up {
+      0% {
+        transform: rotateX(25deg) translateY(100%);
+      }
+
+      100% {
+        transform: rotateX(25deg) translateY(-100%);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- En-tête -->
+  <h1>Générateur de Téléprompteur</h1>
+
+  <!-- Container principal -->
+  <div id="container">
+    <!-- Zone de saisie -->
+    <section class="input-section">
+      <label for="textInput">Entrez votre texte :</label>
+      <textarea id="textInput" placeholder="Tapez ou collez ici le texte à lire..."></textarea>
+      <button id="generateBtn" class="btn">Générer le téléprompteur</button>
+    </section>
+
+    <!-- Zone du téléprompteur -->
+    <section id="teleprompter">
+      <div id="displayZone"></div>
+
+      <!-- Contrôles -->
+      <div class="nav-buttons">
+        <button id="prevBtn" class="btn">⇦ Précédent</button>
+        <button id="nextBtn" class="btn">Suivant ⇨</button>
+        <button id="autoScrollBtn" class="btn">Lecture automatique</button>
+      </div>
+    </section>
+  </div>
+  <script>
+    // --- Configuration des éléments DOM ---
+    const textInput = document.getElementById('textInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const teleprompter = document.getElementById('teleprompter');
+    const displayZone = document.getElementById('displayZone');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const autoScrollBtn = document.getElementById('autoScrollBtn');
+
+    // --- Variables globales ---
+    let sentences = [];  // Stockage des phrases du prompteur
+    let currentIndex = 0;  // Index de la phrase courante
+    let isAutoScrolling = false;  // État du défilement automatique
+    let scrollInterval;  // Intervalle pour le défilement
+    let startTime;  // Temps de début pour le chronomètre
+    let timerInterval;  // Intervalle pour le chronomètre
+
+    // --- Fonctions principales ---
+
+  /**
+   * Initialise le téléprompteur avec le texte saisi
+   * Découpe le texte en phrases et lance l'affichage
+   */
+    function generateTeleprompter() {
+      const text = textInput.value.trim();
+
+      if (text === "") {
+        alert("Veuillez entrer un texte avant de générer le téléprompteur.");
+        return;
+      }
+
+      sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+      teleprompter.style.display = "block";
+      displaySentence();
+    }
+
+  /**
+   * Gère l'affichage des phrases avec effet de surlignage
+   * et animation de défilement
+   */
+    function displaySentence() {
+      if (sentences.length === 0) return;
+
+      // Création des spans pour l'effet de surlignage
+      displayZone.innerHTML = sentences
+        .map(sentence => `<span>${sentence}</span>`)
+        .join('');
+
+      const spans = displayZone.querySelectorAll('span');
+      let currentSpan = 0;
+
+      // Animation du surlignage
+      function highlightNext() {
+        spans.forEach(span => span.classList.remove('active'));
+        currentSpan = currentSpan % spans.length;
+        spans[currentSpan].classList.add('active');
+        currentSpan++;
+        setTimeout(highlightNext, 5000);
+      }
+
+      highlightNext();
+      displayZone.style.animationPlayState = 'running';
+      startTimer();
+    }
+
+    // --- Fonctions de navigation ---
+    function goPrevious() {
+      if (currentIndex > 0) {
+        currentIndex--;
+        displaySentence();
+      }
+    }
+
+    function goNext() {
+      if (currentIndex < sentences.length - 1) {
+        currentIndex++;
+        displaySentence();
+      }
+    }
+
+    // --- Gestion du chronomètre ---
+    function startTimer() {
+      const timerDiv = document.createElement('div');
+      timerDiv.id = 'timer';
+      document.body.appendChild(timerDiv);
+
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+        const minutes = Math.floor(elapsedTime / 60);
+        const seconds = elapsedTime % 60;
+        timerDiv.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }, 1000);
+    }
+
+    // --- Écouteurs d'événements ---
+    generateBtn.addEventListener('click', generateTeleprompter);
+    prevBtn.addEventListener('click', goPrevious);
+    nextBtn.addEventListener('click', goNext);
+    autoScrollBtn.addEventListener('click', toggleAutoScroll);
+
+    // Fonction pour gérer le défilement automatique
+    function toggleAutoScroll() {
+      if (isAutoScrolling) {
+        clearInterval(scrollInterval);
+        autoScrollBtn.textContent = "Lecture automatique";
+        isAutoScrolling = false;
+      } else {
+        scrollInterval = setInterval(() => {
+          if (currentIndex < sentences.length - 1) {
+            goNext();
+          } else {
+            clearInterval(scrollInterval);
+            autoScrollBtn.textContent = "Lecture automatique";
+            isAutoScrolling = false;
+          }
+        }, 5000); // Délai de 5 secondes entre chaque phrase
+        autoScrollBtn.textContent = "Pause";
+        isAutoScrolling = true;
+      }
+    }
+  </script>
+</body>
+
+</html>
